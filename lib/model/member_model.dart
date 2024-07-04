@@ -9,6 +9,10 @@ class Member{
   String deviceType = '';
   String deviceToken = '';
 
+  bool followed = false;
+  int followersCount = 0;
+  int followingCount = 0;
+
   Member.fromJson(Map<String, dynamic>json)
   :     uid = json['uid'],
         fullName = json['fullName'],

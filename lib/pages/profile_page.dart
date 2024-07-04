@@ -5,10 +5,14 @@ import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:instaclone/model/member_model.dart';
 import 'package:instaclone/router/app_router.dart';
 import 'package:instaclone/service/auth_service.dart';
+import 'package:instaclone/service/db_service.dart';
+import 'package:instaclone/service/file_service.dart';
 
 import '../model/post_model.dart';
+import '../service/utils_service.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -22,24 +26,59 @@ class _ProfilePageState extends State<ProfilePage> {
   int axisCount = 1;
   List<Post> items = [];
   File? _image;
-  String fullName = 'Asliddin Ummatov', email = 'asliddin@gmail.com', imageUrl = '';
+  String fullName = '', email = '', imageUrl = '';
   int countPost = 0, countFollowers = 0, countFollowing = 0;
 
   final ImagePicker _picker = ImagePicker();
 
-  String image_1 = "https://images.unsplash.com/photo-1712869456131-f20d945004cd";
-  String image_2 = "https://images.unsplash.com/photo-1715546658746-27b1f6eb2b21";
-  String image_3 = "https://images.unsplash.com/photo-1641943083592-8de0047e5678";
+  _apiLoadPosts(){
+    DBService.loadPosts().then((value) => {
+      _resLoadPosts(value)
+    });
+  }
+
+  _resLoadPosts(List<Post> posts){
+    setState(() {
+      items = posts;
+      countPost = posts.length;
+    });
+  }
+
+  _dialogRemovePost (Post post)async{
+    var result = await Utils.dialogCommon(context, 'Insta Clone', 'Do you want to delete this post', false);
+    if (result != null && result){
+      setState(() {
+        isLoading = true;
+      });
+      DBService.removePost(post).then((value) => {
+        _apiLoadPosts()
+      });
+    }
+  }
+
+  _dialogLogout ()async{
+    var result = await Utils.dialogCommon(context, 'Insta Clone', 'Do you want to logout', false);
+    if (result != null ){
+      setState(() {
+        isLoading = true;
+      });
+      AuthService.signOutUser(context);
+      context.pushReplacement(RouteNames.signIn);
+    }
+  }
 
   @override
   void initState() {
     super.initState();
-    items.add(Post(image_3, 'Best'));
-    items.add(Post(image_2, 'Good'));
-    items.add(Post(image_1, 'Beautiful'));
-    items.add(Post(image_1, 'Beautiful'));
-    items.add(Post(image_2, 'Beautiful'));
-    items.add(Post(image_1, 'Beautiful'));
+    _apiLoadMember();
+    _apiLoadPosts();
+  }
+
+  _apiUpdateUser(String downloadUrl) async{
+    Member member = await DBService.loadMember();
+    member.imageUrl = downloadUrl;
+    await DBService.updateMember(member);
+    _apiLoadMember();
   }
 
   void _showPicker(){
@@ -78,11 +117,23 @@ class _ProfilePageState extends State<ProfilePage> {
     setState(() {
       _image = File(image!.path);
     });
+    _apiChengPhoto();
   }
   _imgFromCamera()async{
     XFile? image = await _picker.pickImage(source: ImageSource.camera, imageQuality: 50);
     setState(() {
       _image = File(image!.path);
+    });
+    _apiChengPhoto();
+  }
+
+  void _apiChengPhoto(){
+    setState(() {
+      isLoading = true;
+    });
+
+    FileService.uploadUserImage(_image!).then((downloadUrl) => {
+      _apiUpdateUser(downloadUrl)
     });
   }
 
@@ -99,8 +150,7 @@ class _ProfilePageState extends State<ProfilePage> {
         actions: [
           IconButton(
             onPressed: (){
-              AuthService.signOutUser(context);
-              context.pushReplacement(RouteNames.signIn);
+              _dialogLogout();
             },
             icon: const Icon(Icons.exit_to_app),
             color: const Color.fromRGBO(193, 53, 132, 1),
@@ -132,14 +182,14 @@ class _ProfilePageState extends State<ProfilePage> {
                         ),
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(35),
-                          child: _image == null
+                          child: imageUrl.isEmpty
                               ? const Image(
                             image: AssetImage('assets/images/ic_person.png'),
                             width: 70,
                             height: 70,
                             fit: BoxFit.cover,
                           )
-                              : Image.file(_image!,
+                              : Image.network(imageUrl,
                             width: 70,
                             height:70,
                             fit: BoxFit.cover,
@@ -270,28 +320,53 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
+  void _apiLoadMember(){
+    setState(() {
+      isLoading = true;
+    });
+    DBService.loadMember().then((value) => {
+      _showMemberInfo(value),
+    });
+  }
+
+  void _showMemberInfo(Member member) {
+    setState(() {
+      isLoading = true;
+      fullName = member.fullName;
+      email = member.email;
+      imageUrl = member.imageUrl;
+      countFollowers = member.followersCount;
+      countFollowing = member.followingCount;
+    });
+  }
+
   Widget _itemOfPost(Post post){
     return
-      Container(
-        margin: const EdgeInsets.all(5),
-        child: Column(
-          children: [
-            Expanded(
-              child: CachedNetworkImage(
-                width: double.infinity,
-                imageUrl: post.imgPost.toString(),
-                placeholder: (context, url)=> const Center(
-                  child: CircularProgressIndicator(),
+      GestureDetector(
+        onLongPress: (){
+          _dialogRemovePost(post);
+        },
+        child: Container(
+          margin: const EdgeInsets.all(5),
+          child: Column(
+            children: [
+              Expanded(
+                child: CachedNetworkImage(
+                  width: double.infinity,
+                  imageUrl: post.imgPost.toString(),
+                  placeholder: (context, url)=> const Center(
+                    child: CircularProgressIndicator(),
+                  ),
+                  errorWidget: (context, url, error)=> const Icon(Icons.error),
+                  fit: BoxFit.cover,
                 ),
-                errorWidget: (context, url, error)=> const Icon(Icons.error),
-                fit: BoxFit.cover,
               ),
-            ),
-            const Gap(5),
-            Text(post.caption.toString(), style: TextStyle(color: Colors.black87.withOpacity(0.7)),
-            maxLines: 2,
-            ),
-          ],
+              const Gap(5),
+              Text(post.caption.toString(), style: TextStyle(color: Colors.black87.withOpacity(0.7)),
+              maxLines: 2,
+              ),
+            ],
+          ),
         ),
       );
   }

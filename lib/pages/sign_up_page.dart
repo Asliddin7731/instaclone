@@ -1,8 +1,9 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 import 'package:go_router/go_router.dart';
+import 'package:instaclone/model/member_model.dart';
 import 'package:instaclone/service/auth_service.dart';
+import 'package:instaclone/service/db_service.dart';
 
 import '../router/app_router.dart';
 import '../service/utils_service.dart';
@@ -21,13 +22,13 @@ class _SignUpPageState extends State<SignUpPage> {
   var passwordController = TextEditingController();
   var cPasswordController = TextEditingController();
 
-  _doSignUp() {
+  _doSignUp() async {
     String fullName = fullNameController.text.toString().trim();
     String email = emailController.text.toString().trim();
     String password = passwordController.text.toString().trim();
     String cPassword = cPasswordController.text.toString().trim();
 
-    bool isPasswordValid = RegExp(r'^(?=.*?[A-Z])(?=.*?[a-z])(?=.*?[0-9])(?=.*?[!@#$&*~]).{8,}$').hasMatch(password);
+    bool isPasswordValid = RegExp(r'^(?=.*?[A-Z])(?=.*?[a-z])(?=.*?[0-9])(?=.*?[.!@#$&*~]).{8,}$').hasMatch(password);
 
     if (!isPasswordValid) {
       Utils.fireToast('Password must be at least 6 characters long and contain at least one uppercase letter, one number, and a special character');
@@ -38,7 +39,7 @@ class _SignUpPageState extends State<SignUpPage> {
 
     if (fullName.isEmpty || email.isEmpty || password.isEmpty ||
         !email.contains('@gmail.com') || email.contains('#') || '@'.allMatches(email).length != 1
-    || !isPasswordValid) return;
+    || !isPasswordValid || email.contains(' ')) return;
 
     if (password != cPassword){
       Utils.fireToast('Password and confirm password does not match');
@@ -47,12 +48,12 @@ class _SignUpPageState extends State<SignUpPage> {
     setState(() {
       isLoading = true;
     });
-    AuthService.signUpUser(email, password).then((value) => {
-      _responseSignUp(value!),
-    });
+    await AuthService.signUpUser(email, password);
+    Member member = Member(fullName, email);
+    DBService.storeMember(member).then((value) => {storeMemberToDB(member)});
   }
 
-  _responseSignUp(User firebase){
+  void storeMemberToDB(Member member) {
     setState(() {
       isLoading = false;
     });

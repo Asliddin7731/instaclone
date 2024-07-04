@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
+import 'package:instaclone/service/db_service.dart';
 
 import '../model/member_model.dart';
 
@@ -11,17 +12,54 @@ class SearchPage extends StatefulWidget {
 }
 
 class _SearchPageState extends State<SearchPage> {
-
   bool isLoading = false;
   var searchController = TextEditingController();
   List<Member> items = [];
 
+  void _apiSearchMembers(String keyword) {
+    setState(() {
+      isLoading = true;
+    });
+    DBService.searchMembers(keyword).then((users) => {
+          _respSearchMembers(users),
+        });
+  }
+
+  void _respSearchMembers(List<Member> member) {
+    setState(() {
+      items = member;
+      isLoading = false;
+    });
+  }
+
+  void _apiFollowMember(Member someone)async{
+    setState(() {
+      isLoading = true;
+    });
+    await DBService.followMember(someone);
+    setState(() {
+      someone.followed = true;
+      isLoading = false;
+    });
+    DBService.storePostsMyFeed(someone);
+  }
+
+  void _apiUnFollowMember(Member someone)async{
+    setState(() {
+      isLoading = true;
+    });
+    await DBService.unFollowMember(someone);
+    setState(() {
+      someone.followed = false;
+      isLoading = false;
+    });
+    DBService.removePostsMyFeed(someone);
+  }
+
   @override
   void initState() {
     super.initState();
-    items.add(Member('Asliddin', 'asliddin@gmail.com'));
-    items.add(Member('Shahob', 'Shahob@gmail.com'));
-    items.add(Member('Asadbek', 'Asadbek@gmail.com'));
+    _apiSearchMembers('');
   }
 
   @override
@@ -30,8 +68,10 @@ class _SearchPageState extends State<SearchPage> {
       backgroundColor: Colors.white,
       appBar: AppBar(
         backgroundColor: Colors.white,
-        title: const Text('Search',style: TextStyle(
-            color: Colors.black, fontFamily: 'Billabong', fontSize: 25),
+        title: const Text(
+          'Search',
+          style: TextStyle(
+              color: Colors.black, fontFamily: 'Billabong', fontSize: 25),
         ),
       ),
       body: Stack(
@@ -46,28 +86,26 @@ class _SearchPageState extends State<SearchPage> {
                   controller: searchController,
                   cursorColor: Colors.black,
                   decoration: InputDecoration(
-                    prefixIcon: const Icon(Icons.search),
+                      prefixIcon: const Icon(Icons.search),
                       prefixIconColor: Colors.grey.shade500,
                       contentPadding: const EdgeInsets.all(10),
                       border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(5),
-                          borderSide: BorderSide.none
-                      ),
+                          borderSide: BorderSide.none),
                       fillColor: Colors.grey.withOpacity(0.2),
                       filled: true,
                       hintText: 'Search',
-                      hintStyle: TextStyle(color: Colors.grey.shade500, fontSize: 14)
-                  ),
+                      hintStyle:
+                          TextStyle(color: Colors.grey.shade500, fontSize: 14)),
                 ),
                 const Gap(10),
                 //#Member List
                 Expanded(
                   child: ListView.builder(
-                    itemCount: items.length,
-                    itemBuilder: (ctx, index){
-                      return _itemOfMember(items[index]);
-                    }
-                  ),
+                      itemCount: items.length,
+                      itemBuilder: (ctx, index) {
+                        return _itemOfMember(items[index]);
+                      }),
                 ),
               ],
             ),
@@ -77,7 +115,7 @@ class _SearchPageState extends State<SearchPage> {
     );
   }
 
-  Widget _itemOfMember(Member member){
+  Widget _itemOfMember(Member member) {
     return SizedBox(
       height: 90,
       child: Row(
@@ -89,28 +127,38 @@ class _SearchPageState extends State<SearchPage> {
               border: Border.all(
                 width: 1.5,
                 color: const Color.fromRGBO(193, 53, 132, 1),
-
               ),
             ),
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(22.5),
-              child: const Image(
-                image: AssetImage('assets/images/ic_person.png'),
-                width: 45,
-                height: 45,
-                fit: BoxFit.cover,
-              ),
-            ),
+                borderRadius: BorderRadius.circular(22.5),
+                child: member.imageUrl.isEmpty
+                    ? const Image(
+                        image: AssetImage('assets/images/ic_person.png'),
+                        width: 45,
+                        height: 45,
+                        fit: BoxFit.cover,
+                      )
+                    : Image.network(
+                        member.imageUrl,
+                        width: 45,
+                        height: 45,
+                        fit: BoxFit.cover,
+                      )),
           ),
-          
           const Gap(15),
-
           Column(
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(member.fullName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),),
-              Text(member.email, style: const TextStyle(color: Colors.black45, fontSize: 13),),
+              Text(
+                member.fullName,
+                style:
+                    const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+              ),
+              Text(
+                member.email,
+                style: const TextStyle(color: Colors.black45, fontSize: 13),
+              ),
             ],
           ),
           Expanded(
@@ -119,15 +167,25 @@ class _SearchPageState extends State<SearchPage> {
               children: [
                 MaterialButton(
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(5),
-                    side: const BorderSide(width: 1, color: Colors.grey)
-                  ),
+                      borderRadius: BorderRadius.circular(5),
+                      side: member.followed
+                          ? const BorderSide(width: 1, color: Colors.grey)
+                          : const BorderSide(width: 1, color: Colors.blueAccent)),
                   elevation: 0,
                   height: 32,
                   minWidth: 100,
-                  color: Colors.white,
-                  child: const Text('Follow', style: TextStyle(color: Colors.grey),),
-                  onPressed: (){
+                  color: member.followed ? Colors.white : Colors.blueAccent,
+                  child: member.followed
+                      ? const Text('Following',
+                          style: TextStyle(color: Colors.grey))
+                      : const Text('Follow',
+                          style: TextStyle(color: Colors.white)),
+                  onPressed: () {
+                    if(member.followed){
+                      _apiUnFollowMember(member);
+                    }else{
+                      _apiFollowMember(member);
+                    }
                   },
                 ),
               ],
@@ -137,5 +195,4 @@ class _SearchPageState extends State<SearchPage> {
       ),
     );
   }
-
 }

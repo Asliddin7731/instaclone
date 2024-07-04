@@ -3,6 +3,9 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:gap/gap.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:instaclone/model/post_model.dart';
+import 'package:instaclone/service/db_service.dart';
+import 'package:instaclone/service/file_service.dart';
 
 class UploadPage extends StatefulWidget {
   final PageController? pageController;
@@ -23,7 +26,31 @@ class _UploadPageState extends State<UploadPage> {
     String caption = captionController.text.trim();
     if(caption.isEmpty) return;
     if(_image == null) return;
-    _moveToFeed();
+    _apiPostImage();
+  }
+
+  void _apiPostImage(){
+    setState(() {
+      isLoading = true;
+    });
+    FileService.uploadPostImage(_image!).then((downloadUrl) => {
+      _resPostImage(downloadUrl),
+    });
+  }
+
+  void _resPostImage(String downloadUrl){
+    String caption = captionController.text.trim();
+    Post post = Post(caption, downloadUrl);
+    apiStorePost(post);
+  }
+
+  void apiStorePost(Post post) async{
+    // Post to post
+    Post posted = await DBService.storePost(post);
+    //Post to Feed
+    DBService.storeFeed(posted).then((value) => {
+      _moveToFeed()
+    });
   }
 
   _moveToFeed(){
